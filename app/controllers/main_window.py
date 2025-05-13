@@ -46,6 +46,10 @@ class MainWindow(QMainWindow):
         self.ui.button_refresh.clicked.connect(self.refresh_data)
         self.ui.button_logout.clicked.connect(self.logout)
 
+        self.ui.button_add.clicked.connect(self.add_component)
+        self.ui.button_edit.clicked.connect(self.edit_component)
+        self.ui.button_delete.clicked.connect(self.delete_component)
+
     def setup_admin_controls(self):
         self.ui.btn_update_access.clicked.connect(self.update_user_access)
         self.ui.btn_delete_user.clicked.connect(self.delete_user)
@@ -251,6 +255,76 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print(f"Ошибка обновления данных: {e}")
             QMessageBox.warning(self, "Ошибка", "Не удалось обновить данные")
+
+    def add_component(self):
+        categories = get_all_categories()
+        dialog = EditComponentDialog(categories, self)
+        if dialog.exec() == QDialog.Accepted:
+            data = dialog.get_data()
+            if add_component(**data):
+                self.refresh_data()
+                QMessageBox.information(self, "Успех", "Товар успешно добавлен")
+            else:
+                QMessageBox.warning(self, "Ошибка", "Не удалось добавить товар")
+
+    def edit_component(self):
+        selected = self.ui.table_components.selectedItems()
+        if not selected:
+            QMessageBox.warning(self, "Ошибка", "Выберите товар для редактирования")
+            return
+
+        component_id = int(self.ui.table_components.item(selected[0].row(), 0).text())
+        components = get_all_components()
+        component = next((c for c in components if c.component_id == component_id), None)
+
+        if not component:
+            QMessageBox.warning(self, "Ошибка", "Товар не найден")
+            return
+
+        categories = get_all_categories()
+        dialog = EditComponentDialog(categories, self, component)
+        if dialog.exec() == QDialog.Accepted:
+            data = dialog.get_data()
+            if update_component(component_id, **data):
+                self.refresh_data()
+                QMessageBox.information(self, "Успех", "Товар успешно обновлен")
+            else:
+                QMessageBox.warning(self, "Ошибка", "Не удалось обновить товар")
+
+    def delete_component(self):
+        selected = self.ui.table_components.selectedItems()
+        if not selected:
+            QMessageBox.warning(self, "Ошибка", "Выберите товар для удаления")
+            return
+
+        component_id = int(self.ui.table_components.item(selected[0].row(), 0).text())
+
+        reply = QMessageBox.question(
+            self, "Подтверждение",
+            "Вы уверены, что хотите удалить этот товар?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            if delete_component(component_id):
+                self.refresh_data()
+                QMessageBox.information(self, "Успех", "Товар успешно удален")
+            else:
+                QMessageBox.warning(self, "Ошибка", "Не удалось удалить товар")
+
+    def get_data(self):
+        try:
+            price = float(self.price_edit.text())
+            return {
+                "name": self.name_edit.text(),
+                "description": self.desc_edit.text(),
+                "quantity": self.quantity_spin.value(),
+                "price": price,
+                "category_id": self.category_combo.currentData()
+            }
+        except ValueError:
+            QMessageBox.warning(self, "Ошибка", "Введите корректную цену")
+            raise ValueError("Некорректная цена")
 
     def logout(self):
         self.close()

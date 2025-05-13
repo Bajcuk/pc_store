@@ -9,7 +9,7 @@ class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
-        MainWindow.resize(1200, 800)
+        MainWindow.resize(800, 600)
 
         self.centralwidget = QWidget(MainWindow)
         self.verticalLayout = QVBoxLayout(self.centralwidget)
@@ -61,10 +61,17 @@ class Ui_MainWindow(object):
 
         # Кнопки управления
         self.button_layout = QHBoxLayout()
+        self.button_add = QPushButton("Добавить")
+        self.button_edit = QPushButton("Редактировать")
+        self.button_delete = QPushButton("Удалить")
         self.button_refresh = QPushButton("Обновить")
         self.button_logout = QPushButton("Выйти")
+        self.button_layout.addWidget(self.button_add)
+        self.button_layout.addWidget(self.button_edit)
+        self.button_layout.addWidget(self.button_delete)
         self.button_layout.addWidget(self.button_refresh)
         self.button_layout.addWidget(self.button_logout)
+
         self.verticalLayout.addLayout(self.button_layout)
 
         MainWindow.setCentralWidget(self.centralwidget)

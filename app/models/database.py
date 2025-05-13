@@ -235,47 +235,7 @@ def get_users_with_access_level():
         })
     return users_list
 
-def add_component(name, description, quantity, price, category_id):
-    try:
-        query = components.insert().values(
-            name=name,
-            description=description,
-            quantity=quantity,
-            price=price,
-            category_id=category_id
-        )
-        connection.execute(query)
-        connection.commit()
-        return True
-    except Exception as e:
-        print(f"Ошибка добавления товара: {e}")
-        return False
 
-def update_component(component_id, name, description, quantity, price, category_id):
-    try:
-        query = components.update().where(components.c.component_id == component_id).values(
-            name=name,
-            description=description,
-            quantity=quantity,
-            price=price,
-            category_id=category_id
-        )
-        result = connection.execute(query)
-        connection.commit()
-        return result.rowcount > 0
-    except Exception as e:
-        print(f"Ошибка обновления товара: {e}")
-        return False
-
-def delete_component(component_id):
-    try:
-        query = components.delete().where(components.c.component_id == component_id)
-        result = connection.execute(query)
-        connection.commit()
-        return result.rowcount > 0
-    except Exception as e:
-        print(f"Ошибка удаления товара: {e}")
-        return False
 
 
 
