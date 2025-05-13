@@ -1,0 +1,76 @@
+#login_window {
+    background-color: rgb(170, 85, 255);
+    font-family: 14pt "Constantia";
+}
+
+#MainWindow {
+    background-color: rgb(170, 85, 255);
+    font-family: 14pt "Constantia";
+}
+
+QPushButton {
+    background-color: white;
+    color: rgb(170, 85, 255);
+    font-family: 14pt "Constantia";
+    border-radius: 5px;
+}
+
+QPushButton:hover {
+    background-color: rgb(230, 230, 230);
+}
+
+QLineEdit {
+    background-color: white;
+    color: black;
+    border: 1px solid gray;
+    border-radius: 3px;
+    padding: 5px;
+    font-family: 14pt "Constantia";
+}
+
+QLabel {
+    color: white;
+    font-family: 14pt "Constantia";
+}
+
+
+#label_welcome {
+    font-size: 24pt;
+}
+
+#button_logout {
+    min-height: 50px;
+}
+
+QPushButton {
+    background-color: white;
+    color: rgb(170, 85, 255);
+    border-radius: 5px;
+    padding: 8px;
+    font-family: 14pt "Constantia";
+}
+
+QPushButton:checked {
+    background-color: rgb(170, 85, 255);
+    color: white;
+}
+
+QPushButton:hover {
+    background-color: rgb(230, 230, 230);
+}
+
+QPushButton#btn_update_access {
+    background-color: #4CAF50;
+    color: white;
+    font-weight: bold;
+}
+
+QPushButton#btn_delete_user {
+    background-color: #f44336;
+    color: white;
+    font-weight: bold;
+}
+
+QComboBox#combo_access_level {
+    min-width: 150px;
+}
