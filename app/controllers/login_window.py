@@ -2,6 +2,7 @@ from PySide6.QtWidgets import QMainWindow, QMessageBox, QInputDialog, QLineEdit
 from app.views.ui_login_window import Ui_login_window
 from app.controllers.main_window import MainWindow
 from app.controllers.unverified_window import UnverifiedWindow
+from app.controllers.register_window import RegisterWindow
 from app.models.database import register_user, authenticate_user, AccessLevel
 
 
@@ -10,13 +11,19 @@ class LoginWindow(QMainWindow):
         super().__init__()
         self.ui = Ui_login_window()
         self.ui.setupUi(self)
+        self.ui.line_login.setFocus()
+
         self.setup_connections()
         self.main_window = None
         self.unverified_window = None
+        self.register_window = None
 
     def setup_connections(self):
         self.ui.button_sign_in.clicked.connect(self.authenticate)
-        self.ui.button_sign_up.clicked.connect(self.show_signup_dialog)
+        self.ui.button_sign_up.clicked.connect(self.show_register_window)
+
+        self.ui.line_login.returnPressed.connect(self.focus_password)
+        self.ui.line_password.returnPressed.connect(self.authenticate)
 
     def authenticate(self):
         login = self.ui.line_login.text().strip()
@@ -45,21 +52,11 @@ class LoginWindow(QMainWindow):
         self.hide()
         self.main_window.show()
 
-    def show_signup_dialog(self):
-        name, ok1 = QInputDialog.getText(self, "Регистрация", "Имя:")
-        if not ok1: return
+    def show_register_window(self):
+        if not self.register_window:
+            self.register_window = RegisterWindow(self)
+        self.register_window.show()
 
-        last_name, ok2 = QInputDialog.getText(self, "Регистрация", "Фамилия:")
-        if not ok2: return
+    def focus_password(self):
+        self.ui.line_password.setFocus()
 
-        login, ok3 = QInputDialog.getText(self, "Регистрация", "Логин:")
-        if not ok3: return
-
-        password, ok4 = QInputDialog.getText(self, "Регистрация", "Пароль:",
-                                             QLineEdit.Password)
-        if not ok4: return
-
-        if register_user(name, last_name, login, password):
-            QMessageBox.information(self, "Успех", "Регистрация прошла успешно!")
-        else:
-            QMessageBox.warning(self, "Ошибка", "Пользователь с таким логином уже существует")

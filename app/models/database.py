@@ -2,9 +2,15 @@ import sqlalchemy as db
 from sqlalchemy import Enum
 import bcrypt
 
-engine = db.create_engine('sqlite:///database.db')
-connection = engine.connect()
+engine = None
+connection = None
 metadata = db.MetaData()
+
+def init_db(db_url='sqlite:///database.db'):
+    global engine, connection
+    engine = db.create_engine(db_url)
+    connection = engine.connect()
+    metadata.create_all(engine)
 
 
 class AccessLevel:
@@ -40,7 +46,7 @@ components = db.Table('components', metadata,
                       db.Column('price', db.Float),
                       db.Column('category_id', db.Integer, db.ForeignKey('categories.category_id')))
 
-metadata.create_all(engine)
+#init_db()
 
 """Аутентификация"""
 
@@ -149,6 +155,12 @@ def get_all_components():
 
 def add_component(name, description, quantity, price, category_id):
     try:
+        category_exists = connection.execute(
+            db.select(categories).where(categories.c.category_id == category_id)
+        ).fetchone()
+        if not category_exists:
+            raise ValueError("Категория не найдена")
+
         query = components.insert().values(
             name=name,
             description=description,
@@ -161,7 +173,9 @@ def add_component(name, description, quantity, price, category_id):
         return True
     except Exception as e:
         print(f"Ошибка добавления товара: {e}")
+        connection.rollback()
         return False
+
 
 def update_component(component_id, name, description, quantity, price, category_id):
     try:
@@ -235,29 +249,3 @@ def get_users_with_access_level():
         })
     return users_list
 
-
-
-
-
-
-
-
-"""
-hashed_pwd=hash_password("1234")
-
-with engine.connect() as conn:
-    insertion_query = users.insert().values(
-       name="Роман",
-       last_name="Байчук",
-       login="Admin",
-       hashed_password=hashed_pwd,
-       access_level=AccessLevel.ADMIN)
-
-    connection.execute(insertion_query)
-    connection.commit()
-"""
-
-"""
-    result = connection.execute(db.select(categories))
-    for r in result:
-        print(f"{r.category_id} | {r.name} | {r.description} ")"""
