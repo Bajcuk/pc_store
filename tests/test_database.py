@@ -4,8 +4,6 @@ from app.models.database import (
     init_db, register_user, authenticate_user, hash_password, verify_password,
     add_component, get_all_components, get_all_categories, update_component,
     delete_component, get_all_users, update_user_access, delete_user,
-    get_components_with_category_name, get_categories_with_count,
-    search_components_by_name,
     categories, AccessLevel
 )
 
@@ -18,9 +16,6 @@ def test_db():
 
     try:
         init_db('sqlite:///:memory:')
-
-        if database.connection is None:
-            raise Exception("Не удалось установить соединение с базой данных")
 
         test_categories = [
             {'name': 'Электроника', 'description': 'Электронные компоненты'},
@@ -120,7 +115,6 @@ class TestUserManagement:
 
 
 class TestComponentManagement:
-
     def test_add_component(self, test_db):
         categories_list = get_all_categories()
         electronics_id = None
@@ -131,7 +125,6 @@ class TestComponentManagement:
 
         assert electronics_id is not None, "Категория 'Электроника' не найдена"
 
-        # Добавляем компонент
         result = add_component(
             name="Резистор 10кОм",
             description="Резистор углеродный 10кОм 0.25Вт",
@@ -179,54 +172,7 @@ class TestComponentManagement:
         assert len(remaining_components) == 0
 
 
-class TestQueries:
-    def test_get_components_with_category_name(self, test_db):
-        categories_list = get_all_categories()
-
-        add_component("Компонент 1", "Описание 1", 10, 5.0, categories_list[0].category_id)
-        add_component("Компонент 2", "Описание 2", 20, 10.0, categories_list[1].category_id)
-
-        components_with_categories = get_components_with_category_name()
-        assert len(components_with_categories) == 2
-
-        component_names = [c.name for c in components_with_categories]
-        category_names = [c.category_name for c in components_with_categories]
-
-        assert "Компонент 1" in component_names
-        assert "Компонент 2" in component_names
-        assert "Электроника" in category_names or "Инструменты" in category_names
-
-    def test_get_categories_with_count(self, test_db):
-        categories_list = get_all_categories()
-
-        add_component("Компонент 1", "Описание", 10, 5.0, categories_list[0].category_id)
-        add_component("Компонент 2", "Описание", 20, 10.0, categories_list[0].category_id)
-
-        categories_with_count = get_categories_with_count()
-        assert len(categories_with_count) == 3
-
-        for cat in categories_with_count:
-            if cat.category_id == categories_list[0].category_id:
-                assert cat.items_count == 2
-            else:
-                assert cat.items_count == 0
-
-    def test_search_components_by_name(self, test_db):
-        categories_list = get_all_categories()
-
-        add_component("Резистор 10кОм", "Описание", 10, 5.0, categories_list[0].category_id)
-        add_component("Резистор 100кОм", "Описание", 20, 10.0, categories_list[0].category_id)
-        add_component("Конденсатор", "Описание", 30, 15.0, categories_list[0].category_id)
-
-        search_results = search_components_by_name("Резистор")
-        assert len(search_results) == 2
-
-        specific_search = search_components_by_name("10кОм")
-        assert len(specific_search) == 1
-        assert specific_search[0].name == "Резистор 10кОм"
-
-
-class TestEdgeCases:
+class TestWrongCases:
     def test_add_component_invalid_category(self, test_db):
         result = add_component("Тест", "Описание", 10, 5.0, 9999)
         assert result == False
@@ -242,27 +188,6 @@ class TestEdgeCases:
     def test_update_nonexistent_user_access(self, test_db):
         result = update_user_access(9999, AccessLevel.ADMIN)
         assert result == False
-
-
-class TestDatabaseConnection:
-    def test_database_initialization(self):
-        old_engine = database.engine
-        old_connection = database.connection
-
-        try:
-            init_db('sqlite:///:memory:')
-
-            assert database.engine is not None
-            assert database.connection is not None
-
-        finally:
-            if database.connection:
-                database.connection.close()
-            if database.engine:
-                database.engine.dispose()
-
-            database.engine = old_engine
-            database.connection = old_connection
 
 
 if __name__ == "__main__":

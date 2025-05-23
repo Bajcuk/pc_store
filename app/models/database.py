@@ -43,22 +43,18 @@ components = db.Table('components', metadata,
 
 
 class DatabaseManager:
-    """Класс для управления соединением с базой данных"""
-
     def __init__(self, db_url='sqlite:///database.db'):
         self.db_url = db_url
         self.engine = None
         self.connection = None
 
     def connect(self):
-        """Установить соединение с базой данных"""
         self.engine = db.create_engine(self.db_url)
         self.connection = self.engine.connect()
         metadata.create_all(self.engine)
         return self.connection
 
     def close(self):
-        """Закрыть соединение с базой данных"""
         if self.connection:
             self.connection.close()
             self.connection = None
@@ -74,14 +70,12 @@ class DatabaseManager:
 
 
 def get_connection():
-    """Получить текущее соединение с базой данных"""
     if connection is None:
-        raise Exception("База данных не инициализирована. Вызовите init_db() сначала.")
+        raise Exception("База данных не инициализирована.")
     return connection
 
 
 def init_db(db_url='sqlite:///database.db'):
-    """Инициализация базы данных"""
     global engine, connection
     engine = db.create_engine(db_url)
     connection = engine.connect()
@@ -90,7 +84,6 @@ def init_db(db_url='sqlite:///database.db'):
 
 @contextmanager
 def temp_db_connection(db_url):
-    """Контекстный менеджер для временного соединения с базой данных"""
     global engine, connection
     original_engine = engine
     original_connection = connection
