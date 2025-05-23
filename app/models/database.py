@@ -1,16 +1,11 @@
 import sqlalchemy as db
 from sqlalchemy import Enum
 import bcrypt
+from contextlib import contextmanager
 
 engine = None
 connection = None
 metadata = db.MetaData()
-
-def init_db(db_url='sqlite:///database.db'):
-    global engine, connection
-    engine = db.create_engine(db_url)
-    connection = engine.connect()
-    metadata.create_all(engine)
 
 
 class AccessLevel:
@@ -46,14 +41,80 @@ components = db.Table('components', metadata,
                       db.Column('price', db.Float),
                       db.Column('category_id', db.Integer, db.ForeignKey('categories.category_id')))
 
-#init_db()
 
-"""Аутентификация"""
+class DatabaseManager:
+    """Класс для управления соединением с базой данных"""
 
+    def __init__(self, db_url='sqlite:///database.db'):
+        self.db_url = db_url
+        self.engine = None
+        self.connection = None
+
+    def connect(self):
+        """Установить соединение с базой данных"""
+        self.engine = db.create_engine(self.db_url)
+        self.connection = self.engine.connect()
+        metadata.create_all(self.engine)
+        return self.connection
+
+    def close(self):
+        """Закрыть соединение с базой данных"""
+        if self.connection:
+            self.connection.close()
+            self.connection = None
+        if self.engine:
+            self.engine.dispose()
+            self.engine = None
+
+    def __enter__(self):
+        return self.connect()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+
+def get_connection():
+    """Получить текущее соединение с базой данных"""
+    if connection is None:
+        raise Exception("База данных не инициализирована. Вызовите init_db() сначала.")
+    return connection
+
+
+def init_db(db_url='sqlite:///database.db'):
+    """Инициализация базы данных"""
+    global engine, connection
+    engine = db.create_engine(db_url)
+    connection = engine.connect()
+    metadata.create_all(engine)
+
+
+@contextmanager
+def temp_db_connection(db_url):
+    """Контекстный менеджер для временного соединения с базой данных"""
+    global engine, connection
+    original_engine = engine
+    original_connection = connection
+
+    try:
+        engine = db.create_engine(db_url)
+        connection = engine.connect()
+        metadata.create_all(engine)
+        yield connection
+    finally:
+        if connection:
+            connection.close()
+        if engine:
+            engine.dispose()
+        engine = original_engine
+        connection = original_connection
+
+
+# Функции аутентификации
 def hash_password(password):
     pwd_bytes = password.encode('utf-8')
     salt = bcrypt.gensalt()
     return bcrypt.hashpw(pwd_bytes, salt).decode('utf-8')
+
 
 def verify_password(plain_password, hashed_password):
     try:
@@ -64,8 +125,10 @@ def verify_password(plain_password, hashed_password):
     except:
         return False
 
+
 def register_user(name, last_name, login, password):
     try:
+        conn = get_connection()
         hashed_pwd = hash_password(password)
         query = users.insert().values(
             name=name,
@@ -74,16 +137,18 @@ def register_user(name, last_name, login, password):
             hashed_password=hashed_pwd,
             access_level=AccessLevel.UNVERIFIED
         )
-        connection.execute(query)
-        connection.commit()
+        conn.execute(query)
+        conn.commit()
         return True
     except Exception as e:
         print(f"Ошибка регистрации: {e}")
         return False
 
+
 def authenticate_user(login, password):
+    conn = get_connection()
     query = db.select(users).where(users.c.login == login)
-    result = connection.execute(query).fetchone()
+    result = conn.execute(query).fetchone()
 
     if result and verify_password(password, result.hashed_password):
         return {
@@ -96,27 +161,31 @@ def authenticate_user(login, password):
     return None
 
 
-"""Таблицы компонентов и категорий"""
+# Функции для компонентов и категорий
 def get_components_with_category_name():
+    conn = get_connection()
     query = db.select(
         components,
         categories.c.name.label("category_name")
     ).select_from(
         components.join(categories)
     )
-    return connection.execute(query).fetchall()
+    return conn.execute(query).fetchall()
+
 
 def get_categories_with_count():
+    conn = get_connection()
     query = db.select(
         categories,
         db.func.count(components.c.component_id).label("items_count")
     ).select_from(
         categories.outerjoin(components)
     ).group_by(categories.c.category_id)
-    return connection.execute(query).fetchall()
+    return conn.execute(query).fetchall()
 
 
 def get_components_by_category(category_id=None):
+    conn = get_connection()
     query = db.select(
         components,
         categories.c.name.label("category_name")
@@ -127,10 +196,11 @@ def get_components_by_category(category_id=None):
     if category_id:
         query = query.where(components.c.category_id == category_id)
 
-    return connection.execute(query).fetchall()
+    return conn.execute(query).fetchall()
 
 
 def search_components_by_name(search_text, category_id=None):
+    conn = get_connection()
     query = db.select(
         components,
         categories.c.name.label("category_name")
@@ -143,19 +213,25 @@ def search_components_by_name(search_text, category_id=None):
     if category_id:
         query = query.where(components.c.category_id == category_id)
 
-    return connection.execute(query).fetchall()
+    return conn.execute(query).fetchall()
+
 
 def get_all_categories():
+    conn = get_connection()
     query = db.select(categories)
-    return connection.execute(query).fetchall()
+    return conn.execute(query).fetchall()
+
 
 def get_all_components():
+    conn = get_connection()
     query = db.select(components)
-    return connection.execute(query).fetchall()
+    return conn.execute(query).fetchall()
+
 
 def add_component(name, description, quantity, price, category_id):
     try:
-        category_exists = connection.execute(
+        conn = get_connection()
+        category_exists = conn.execute(
             db.select(categories).where(categories.c.category_id == category_id)
         ).fetchone()
         if not category_exists:
@@ -168,17 +244,18 @@ def add_component(name, description, quantity, price, category_id):
             price=price,
             category_id=category_id
         )
-        connection.execute(query)
-        connection.commit()
+        conn.execute(query)
+        conn.commit()
         return True
     except Exception as e:
         print(f"Ошибка добавления товара: {e}")
-        connection.rollback()
+        conn.rollback()
         return False
 
 
 def update_component(component_id, name, description, quantity, price, category_id):
     try:
+        conn = get_connection()
         query = components.update().where(components.c.component_id == component_id).values(
             name=name,
             description=description,
@@ -186,57 +263,65 @@ def update_component(component_id, name, description, quantity, price, category_
             price=price,
             category_id=category_id
         )
-        result = connection.execute(query)
-        connection.commit()
+        result = conn.execute(query)
+        conn.commit()
         return result.rowcount > 0
     except Exception as e:
         print(f"Ошибка обновления товара: {e}")
         return False
 
+
 def delete_component(component_id):
     try:
+        conn = get_connection()
         query = components.delete().where(components.c.component_id == component_id)
-        result = connection.execute(query)
-        connection.commit()
+        result = conn.execute(query)
+        conn.commit()
         return result.rowcount > 0
     except Exception as e:
         print(f"Ошибка удаления товара: {e}")
         return False
 
 
-
-"""Таблицы пользователей"""
+# Функции работы с пользователями
 def get_all_users():
+    conn = get_connection()
     query = db.select(users)
-    return connection.execute(query).fetchall()
+    return conn.execute(query).fetchall()
+
 
 def update_user_access(user_id, new_access_level):
     try:
+        conn = get_connection()
         query = users.update().where(users.c.user_id == user_id).values(
             access_level=new_access_level
         )
-        result = connection.execute(query)
-        connection.commit()
+        result = conn.execute(query)
+        conn.commit()
         return result.rowcount > 0
     except Exception as e:
         print(f"Ошибка обновления прав доступа: {e}")
-        connection.rollback()
+        conn.rollback()
         return False
+
 
 def delete_user(user_id):
     try:
+        conn = get_connection()
         query = users.delete().where(users.c.user_id == user_id)
-        result = connection.execute(query)
-        connection.commit()
+        result = conn.execute(query)
+        conn.commit()
         return result.rowcount > 0
     except Exception as e:
         print(f"Ошибка удаления пользователя: {e}")
-        connection.rollback()
+        conn.rollback()
         return False
 
+
 def get_users_with_access_level():
+    conn = get_connection()
     query = db.select(users)
-    results = connection.execute(query).fetchall()
+    results = conn.execute(query).fetchall()
 
     users_list = []
     for user in results:
@@ -248,4 +333,3 @@ def get_users_with_access_level():
             'access_level': user.access_level
         })
     return users_list
-

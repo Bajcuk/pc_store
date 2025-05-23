@@ -278,19 +278,16 @@ class MainWindow(QMainWindow):
         sheet = workbook.active
         sheet.title = "Комплектующие"
 
-        # Заголовки
         headers = ["ID", "Название", "Описание", "Количество", "Цена", "Категория"]
         for col, header in enumerate(headers, start=1):
             sheet.cell(row=1, column=col, value=header)
 
-        # Данные из таблицы
         for row in range(self.ui.table_components.rowCount()):
             for col in range(self.ui.table_components.columnCount()):
                 item = self.ui.table_components.item(row, col)
                 if item:
                     sheet.cell(row=row + 2, column=col + 1, value=item.text())
 
-        # Автоширина
         for col in range(1, self.ui.table_components.columnCount() + 1):
             sheet.column_dimensions[get_column_letter(col)].auto_size = True
 
