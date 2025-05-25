@@ -1,7 +1,7 @@
-from PySide6.QtWidgets import QMainWindow, QMessageBox, QInputDialog, QLineEdit
+from PySide6.QtWidgets import QMainWindow, QMessageBox
 from app.views.ui_login_window import Ui_login_window
 from app.controllers.main_window import MainWindow
-from app.controllers.unverified_window import UnverifiedWindow
+from app.controllers.client_window import ClientWindow
 from app.controllers.register_window import RegisterWindow
 from app.models.database import register_user, authenticate_user, AccessLevel
 
@@ -15,7 +15,7 @@ class LoginWindow(QMainWindow):
 
         self.setup_connections()
         self.main_window = None
-        self.unverified_window = None
+        self.client_window = None
         self.register_window = None
 
     def setup_connections(self):
@@ -35,17 +35,17 @@ class LoginWindow(QMainWindow):
 
         user = authenticate_user(login, password)
         if user:
-            if user['access_level'] == AccessLevel.UNVERIFIED:
-                self.show_unverified_window()
+            if user['access_level'] == AccessLevel.CLIENT:
+                self.show_client_window(user)
             else:
                 self.show_main_window(user)
         else:
             QMessageBox.warning(self, "Ошибка", "Неверный логин или пароль")
 
-    def show_unverified_window(self):
-        self.unverified_window = UnverifiedWindow(self)
+    def show_client_window(self, user_data):
+        self.client_window = ClientWindow(self, user_data)
         self.hide()
-        self.unverified_window.show()
+        self.client_window.show()
 
     def show_main_window(self, user_data):
         self.main_window = MainWindow(self, user_data)
@@ -59,4 +59,3 @@ class LoginWindow(QMainWindow):
 
     def focus_password(self):
         self.ui.line_password.setFocus()
-

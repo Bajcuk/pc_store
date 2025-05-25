@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (QVBoxLayout, QWidget, QPushButton, QTableWidget, QComboBox,
                                QHBoxLayout, QLineEdit, QTabWidget, QLabel)
 
-from app.models.database import AccessLevel
+from app.models.database import AccessLevel, OrderStatus
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -41,7 +41,7 @@ class Ui_MainWindow(object):
 
         self.users_control_layout = QHBoxLayout()
         self.combo_access_level = QComboBox()
-        self.combo_access_level.addItem("Неподтверждённый", AccessLevel.UNVERIFIED)
+        self.combo_access_level.addItem("Клиент", AccessLevel.CLIENT)  # Добавить эту строку
         self.combo_access_level.addItem("Работник", AccessLevel.WORKER)
         self.combo_access_level.addItem("Админ", AccessLevel.ADMIN)
         self.btn_update_access = QPushButton("Изменить права")
@@ -54,6 +54,31 @@ class Ui_MainWindow(object):
         self.users_layout.addLayout(self.users_control_layout)
 
         self.tab_widget.addTab(self.tab_users, "Пользователи")
+
+        # Вкладка Заказы
+        self.tab_orders = QWidget()
+        self.orders_layout = QVBoxLayout(self.tab_orders)
+
+        self.table_orders = QTableWidget()
+        self.orders_layout.addWidget(self.table_orders)
+
+        # Управление заказами
+        self.orders_control_layout = QHBoxLayout()
+        self.combo_order_status = QComboBox()
+        self.combo_order_status.addItem(OrderStatus.ASSEMBLING)
+        self.combo_order_status.addItem(OrderStatus.READY)
+        self.combo_order_status.addItem(OrderStatus.ISSUED)
+        self.btn_update_order_status = QPushButton("Изменить статус")
+
+        self.orders_control_layout.addWidget(QLabel("Новый статус:"))
+        self.orders_control_layout.addWidget(self.combo_order_status)
+        self.orders_control_layout.addWidget(self.btn_update_order_status)
+        self.orders_control_layout.addStretch()
+
+        self.orders_layout.addLayout(self.orders_control_layout)
+
+        self.tab_widget.addTab(self.tab_orders, "Заказы")
+
 
         # Кнопки управления
         self.button_layout = QHBoxLayout()

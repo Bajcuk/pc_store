@@ -2,6 +2,7 @@ import sqlalchemy as db
 from sqlalchemy import Enum
 import bcrypt
 from contextlib import contextmanager
+from datetime import datetime
 
 engine = None
 connection = None
@@ -9,9 +10,15 @@ metadata = db.MetaData()
 
 
 class AccessLevel:
-    UNVERIFIED = "Неподтверждённый пользователь"
+    CLIENT = "Клиент"
     WORKER = "Работник"
     ADMIN = "Админ"
+
+
+class OrderStatus:
+    ASSEMBLING = "Собирается"
+    READY = "Готов к получению"
+    ISSUED = "Выдан"
 
 
 users = db.Table('users', metadata,
@@ -21,12 +28,12 @@ users = db.Table('users', metadata,
                  db.Column('login', db.Text, unique=True, nullable=False),
                  db.Column('hashed_password', db.Text, nullable=False),
                  db.Column('access_level', Enum(
-                     AccessLevel.UNVERIFIED,
+                     AccessLevel.CLIENT,
                      AccessLevel.WORKER,
                      AccessLevel.ADMIN,
                      name='access_level_enum'),
                            nullable=False,
-                           default=AccessLevel.UNVERIFIED))
+                           default=AccessLevel.CLIENT))
 
 categories = db.Table('categories', metadata,
                       db.Column('category_id', db.Integer, primary_key=True),
@@ -40,6 +47,26 @@ components = db.Table('components', metadata,
                       db.Column('quantity', db.Integer),
                       db.Column('price', db.Float),
                       db.Column('category_id', db.Integer, db.ForeignKey('categories.category_id')))
+
+orders = db.Table('orders', metadata,
+                  db.Column('order_id', db.Integer, primary_key=True),
+                  db.Column('user_id', db.Integer, db.ForeignKey('users.user_id')),
+                  db.Column('order_date', db.DateTime, default=datetime.now),
+                  db.Column('status', Enum(
+                      OrderStatus.ASSEMBLING,
+                      OrderStatus.READY,
+                      OrderStatus.ISSUED,
+                      name='order_status_enum'),
+                            nullable=False,
+                            default=OrderStatus.ASSEMBLING),
+                  db.Column('total_price', db.Float))
+
+order_items = db.Table('order_items', metadata,
+                       db.Column('order_item_id', db.Integer, primary_key=True),
+                       db.Column('order_id', db.Integer, db.ForeignKey('orders.order_id')),
+                       db.Column('component_id', db.Integer, db.ForeignKey('components.component_id')),
+                       db.Column('quantity', db.Integer),
+                       db.Column('price', db.Float))
 
 
 class DatabaseManager:
@@ -128,7 +155,7 @@ def register_user(name, last_name, login, password):
             last_name=last_name,
             login=login,
             hashed_password=hashed_pwd,
-            access_level=AccessLevel.UNVERIFIED
+            access_level=AccessLevel.CLIENT
         )
         conn.execute(query)
         conn.commit()
@@ -326,3 +353,111 @@ def get_users_with_access_level():
             'access_level': user.access_level
         })
     return users_list
+
+
+# Функции для работы с заказами
+def create_order(user_id, cart_items):
+    try:
+        conn = get_connection()
+
+        # Рассчитываем общую стоимость заказа
+        total_price = sum(item['price'] * item['quantity'] for item in cart_items)
+
+        # Создаем заказ
+        order_query = orders.insert().values(
+            user_id=user_id,
+            order_date=datetime.now(),
+            status=OrderStatus.ASSEMBLING,
+            total_price=total_price
+        )
+        result = conn.execute(order_query)
+        order_id = result.inserted_primary_key[0]
+
+        # Добавляем позиции заказа
+        for item in cart_items:
+            item_query = order_items.insert().values(
+                order_id=order_id,
+                component_id=item['component_id'],
+                quantity=item['quantity'],
+                price=item['price']
+            )
+            conn.execute(item_query)
+
+            # Уменьшаем количество товара на складе
+            update_query = components.update().where(
+                components.c.component_id == item['component_id']
+            ).values(
+                quantity=components.c.quantity - item['quantity']
+            )
+            conn.execute(update_query)
+
+        conn.commit()
+        return order_id
+    except Exception as e:
+        print(f"Ошибка создания заказа: {e}")
+        conn.rollback()
+        return None
+
+
+def get_orders_with_user_info():
+    conn = get_connection()
+    query = db.select(
+        orders.c.order_id,
+        orders.c.order_date,
+        orders.c.status,
+        orders.c.total_price,
+        users.c.name,
+        users.c.last_name
+    ).select_from(
+        orders.join(users)
+    ).order_by(orders.c.order_date.desc())
+    return conn.execute(query).fetchall()
+
+
+def get_user_orders(user_id):
+    conn = get_connection()
+    query = db.select(orders).where(orders.c.user_id == user_id).order_by(orders.c.order_date.desc())
+    return conn.execute(query).fetchall()
+
+
+def get_order_items(order_id):
+    conn = get_connection()
+    query = db.select(
+        order_items.c.quantity,
+        order_items.c.price,
+        components.c.name,
+        components.c.description
+    ).select_from(
+        order_items.join(components)
+    ).where(order_items.c.order_id == order_id)
+    return conn.execute(query).fetchall()
+
+def get_all_orders():
+    """Получить все заказы с информацией о пользователях"""
+    conn = get_connection()
+    query = db.select(
+        orders.c.order_id,
+        orders.c.order_date,
+        orders.c.status,
+        orders.c.total_price,
+        users.c.name,
+        users.c.last_name,
+        users.c.login
+    ).select_from(
+        orders.join(users)
+    ).order_by(orders.c.order_date.desc())
+    return conn.execute(query).fetchall()
+
+def update_order_status(order_id, new_status):
+    try:
+        conn = get_connection()
+        query = orders.update().where(orders.c.order_id == order_id).values(
+            status=new_status
+        )
+        result = conn.execute(query)
+        conn.commit()
+        return result.rowcount > 0
+    except Exception as e:
+        print(f"Ошибка обновления статуса заказа: {e}")
+        conn.rollback()
+        return False

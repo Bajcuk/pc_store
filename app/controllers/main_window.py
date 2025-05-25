@@ -5,6 +5,13 @@ from PySide6.QtCore import Qt
 import openpyxl
 from openpyxl.utils import get_column_letter
 
+from app.models.database import (
+    get_components_with_category_name,
+    get_all_categories, get_users_with_access_level,
+    AccessLevel, add_component, get_all_components,
+    update_component, delete_component, get_all_orders,
+    update_order_status
+)
 
 from app.views.ui_edit_component import EditComponentDialog
 from app.views.ui_main_window import Ui_MainWindow
@@ -18,11 +25,6 @@ from app.models.database import (
 class MainWindow(QMainWindow):
     def __init__(self, login_window, user_data):
         super().__init__()
-
-        if user_data['access_level'] == AccessLevel.UNVERIFIED:
-            self.close()
-            login_window.show_unverified_window()
-            return
 
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
@@ -38,9 +40,16 @@ class MainWindow(QMainWindow):
 
         if self.user_data['access_level'] == AccessLevel.ADMIN:
             self.load_users()
+            self.load_orders()  # Добавить эту строку
             self.ui.tab_widget.setTabEnabled(1, True)
+            self.ui.tab_widget.setTabEnabled(2, True)  # Добавить эту строку
+        elif self.user_data['access_level'] == AccessLevel.WORKER:
+            self.load_orders()  # Добавить эту строку
+            self.ui.tab_widget.setTabEnabled(1, False)
+            self.ui.tab_widget.setTabEnabled(2, True)  # Добавить эту строку
         else:
             self.ui.tab_widget.setTabEnabled(1, False)
+            self.ui.tab_widget.setTabEnabled(2, False)
 
         self.setup_connections()
 
@@ -61,6 +70,8 @@ class MainWindow(QMainWindow):
         self.ui.tab_widget.currentChanged.connect(self.on_tab_changed)
 
         self.ui.button_export.clicked.connect(self.export_to_excel)
+
+        self.ui.btn_update_order_status.clicked.connect(self.update_order_status)
 
     def load_categories(self):
         try:
@@ -112,6 +123,30 @@ class MainWindow(QMainWindow):
             self.ui.table_users.item(row_idx, 0).setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.ui.table_users.resizeColumnsToContents()
 
+    def load_orders(self):
+        """Загрузить все заказы"""
+        orders = get_all_orders()
+        self.ui.table_orders.setColumnCount(6)
+        self.ui.table_orders.setHorizontalHeaderLabels([
+            "№ Заказа", "Дата", "Клиент", "Логин", "Статус", "Сумма"
+        ])
+        self.ui.table_orders.setRowCount(len(orders))
+
+        for row_idx, order in enumerate(orders):
+            self.ui.table_orders.setItem(row_idx, 0, QTableWidgetItem(str(order.order_id)))
+            self.ui.table_orders.setItem(row_idx, 1, QTableWidgetItem(order.order_date.strftime("%d.%m.%Y %H:%M")))
+            self.ui.table_orders.setItem(row_idx, 2, QTableWidgetItem(f"{order.name} {order.last_name}"))
+            self.ui.table_orders.setItem(row_idx, 3, QTableWidgetItem(order.login))
+            self.ui.table_orders.setItem(row_idx, 4, QTableWidgetItem(order.status))
+            self.ui.table_orders.setItem(row_idx, 5, QTableWidgetItem(f"{order.total_price:.2f} ₽"))
+
+            # Выравнивание для числовых колонок
+            for col in [0, 5]:
+                item = self.ui.table_orders.item(row_idx, col)
+                item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+        self.ui.table_orders.resizeColumnsToContents()
+
     def on_category_changed(self, index):
         self.current_category_id = self.ui.category_filter.currentData()
         self.apply_filters()
@@ -156,6 +191,9 @@ class MainWindow(QMainWindow):
         self.load_components()
         if self.user_data['access_level'] == AccessLevel.ADMIN:
             self.load_users()
+            self.load_orders()
+        elif self.user_data['access_level'] == AccessLevel.WORKER:
+            self.load_orders()
 
     def add_component(self):
         categories = get_all_categories()
@@ -256,6 +294,31 @@ class MainWindow(QMainWindow):
                 self.load_users()
             else:
                 QMessageBox.warning(self, "Ошибка", "Не удалось удалить")
+
+    def update_order_status(self):
+        """Обновить статус заказа"""
+        selected = self.ui.table_orders.selectedItems()
+        if not selected:
+            QMessageBox.warning(self, "Ошибка", "Выберите заказ")
+            return
+
+        order_id = int(self.ui.table_orders.item(selected[0].row(), 0).text())
+        current_status = self.ui.table_orders.item(selected[0].row(), 4).text()
+        new_status = self.ui.combo_order_status.currentText()
+
+        if current_status == new_status:
+            QMessageBox.information(self, "Информация", "Статус уже установлен")
+            return
+
+        reply = QMessageBox.question(self, "Подтверждение",
+                                     f"Изменить статус заказа №{order_id} на '{new_status}'?",
+                                     QMessageBox.Yes | QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            if update_order_status(order_id, new_status):
+                QMessageBox.information(self, "Успех", "Статус заказа обновлён")
+                self.load_orders()
+            else:
+                QMessageBox.warning(self, "Ошибка", "Не удалось обновить статус")
 
     def on_tab_changed(self, index):
         if self.ui.tab_widget.tabText(index) == "Комплектующие":
